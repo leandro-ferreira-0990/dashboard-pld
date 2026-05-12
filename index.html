@@ -1880,9 +1880,62 @@ if (hasChartLib()) {
   };
 }
 
+// ==================== INDEXEDDB PERSISTENCE (sem limite de 5MB) ====================
+const IDB_NAME = 'dashboardPLD';
+const IDB_STORE = 'cases';
+function idbOpen(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSaveCases(cases){
+  try {
+    const db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put({ cases, timestamp: new Date().toISOString() }, 'main');
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  } catch(e){ console.warn('IDB save falhou', e); }
+}
+async function idbLoadCases(){
+  try {
+    const db = await idbOpen();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const r = tx.objectStore(IDB_STORE).get('main');
+      r.onsuccess = () => res(r.result || null);
+      r.onerror = () => rej(r.error);
+    });
+  } catch(e){ console.warn('IDB load falhou', e); return null; }
+}
+const _origSaveCases = saveCasesToStorage;
+saveCasesToStorage = function(){
+  try { _origSaveCases(); } catch(e){ console.warn(e); }
+  if (allCases && allCases.length) idbSaveCases(allCases);
+};
+
 // ==================== INIT ====================
 // Tentar carregar dados salvos primeiro
 let dataLoaded = loadCasesFromStorage();
+// Se não houve dados completos no localStorage, tentar IndexedDB (assíncrono)
+if (!dataLoaded || allCases.length === 0) {
+  idbLoadCases().then(rec => {
+    if (rec && rec.cases && rec.cases.length && (!allCases || allCases.length === 0)) {
+      allCases = rec.cases;
+      allCases.forEach(c => { c.subtipo_pld = c.subtipo_pld || detectSubtipoPLD(c.resumo, c.tipo); });
+      if (rec.timestamp && typeof updateLastUpdateBanner === 'function') updateLastUpdateBanner(rec.timestamp);
+      try { loadCompletedItems(); } catch(e){}
+      const now = new Date(); const ago = new Date(now); ago.setMonth(ago.getMonth() - 3);
+      filters = { tipo:'', subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'', text:'',
+        dateFrom: ago.toISOString().slice(0,10), dateTo: now.toISOString().slice(0,10) };
+      try { renderAll(); } catch(e){ console.warn(e); }
+    }
+  });
+}
 if (dataLoaded && allCases.length > 0) {
   loadCompletedItems();
   const now = new Date();
