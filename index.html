@@ -1360,7 +1360,21 @@ function parseWorkbook(wb){
         subtipo_pld: detectSubtipoPLD(String(row["Resumo"]||row["Summary"]||"").trim(), tipo),
         emailP,
         colunaI: colI,
-        colunaJ: colJ
+        colunaJ: colJ,
+        parecerIA: (function(){ const v = row["Parecer IA PLD"] || row["Parecer IA"] || row["Custom field (Parecer IA PLD)"] || ""; return String(v||"").trim(); })(),
+        parecerIaCat: (function(){
+          const v = String(row["Parecer IA PLD"] || row["Parecer IA"] || row["Custom field (Parecer IA PLD)"] || "").trim();
+          if(!v) return "Sem Parecer";
+          const m = v.match(/Risco[^\n:]*:\s*([^\n]+)/i);
+          if(m){
+            const r = m[1].toUpperCase();
+            if(r.includes("MÉDIO-ALTO")||r.includes("MEDIO-ALTO")) return "Risco MÉDIO-ALTO";
+            if(r.startsWith("ALTO")) return "Risco ALTO";
+            if(r.startsWith("BAIXO")) return "Risco BAIXO";
+            if(r.startsWith("MÉDIO")||r.startsWith("MEDIO")) return "Risco MÉDIO";
+          }
+          return "Com Parecer";
+        })()
       });
     }
   }
@@ -1860,7 +1874,7 @@ document.addEventListener('DOMContentLoaded', setupChartModal);
 
 // ==================== STATE ====================
 let allCases=[];
-let filters={tipo:'',subtipoPLD:'',risco:'',responsavel:'',status:'',sla:'',text:'',dateFrom:'',dateTo:''};
+let filters={tipo:'',subtipoPLD:'',risco:'',responsavel:'',status:'',sla:'',parecerIA:'',text:'',dateFrom:'',dateTo:''};
 let tablePage=0;
 let tableSortField='criado';
 let tableSortDir='desc';
@@ -1930,7 +1944,7 @@ if (!dataLoaded || allCases.length === 0) {
       if (rec.timestamp && typeof updateLastUpdateBanner === 'function') updateLastUpdateBanner(rec.timestamp);
       try { loadCompletedItems(); } catch(e){}
       const now = new Date(); const ago = new Date(now); ago.setMonth(ago.getMonth() - 3);
-      filters = { tipo:'', subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'', text:'',
+      filters = { tipo:'', subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'', parecerIA:'', text:'',
         dateFrom: ago.toISOString().slice(0,10), dateTo: now.toISOString().slice(0,10) };
       try { renderAll(); } catch(e){ console.warn(e); }
     }
@@ -1942,7 +1956,7 @@ if (dataLoaded && allCases.length > 0) {
   const ago = new Date(now);
   ago.setMonth(ago.getMonth() - 3);
   filters = {
-    tipo:'', subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'', text:'',
+    tipo:'', subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'', parecerIA:'', text:'',
     dateFrom: ago.toISOString().slice(0,10),
     dateTo: now.toISOString().slice(0,10)
   };
@@ -1984,7 +1998,7 @@ function loadFile(file){
       try { saveCasesToStorage(); } catch(err) { console.warn('saveCasesToStorage falhou:', err); }
       try { loadCompletedItems(); } catch(err) { console.warn('loadCompletedItems falhou:', err); }
       const now=new Date(),ago=new Date(now);ago.setMonth(ago.getMonth()-3);
-      filters={tipo:'',subtipoPLD:'',risco:'',responsavel:'',status:'',sla:'',text:'',dateFrom:ago.toISOString().slice(0,10),dateTo:now.toISOString().slice(0,10)};
+      filters={tipo:'',subtipoPLD:'',risco:'',responsavel:'',status:'',sla:'',parecerIA:'',text:'',dateFrom:ago.toISOString().slice(0,10),dateTo:now.toISOString().slice(0,10)};
       tablePage=0;
       renderAll();
     } catch(err) {
@@ -2008,6 +2022,7 @@ function applyFilters(cases,f){
     if(f.responsavel&&c.responsavel!==f.responsavel)return false;
     if(f.status){const fs=f.status;if(fs==="open"||fs==="closed"||fs==="coaf"){if(getStatusCategory(c.status)!==fs)return false}else{if(c.status!==fs)return false}}
     if(f.sla&&getSlaStatus(c)!==f.sla)return false;
+    if(f.parecerIA&&(c.parecerIaCat||'Sem Parecer')!==f.parecerIA)return false;
     const combinedDate = getCombinedDate(c);
     if(f.dateFrom&&combinedDate&&new Date(combinedDate)<new Date(f.dateFrom))return false;
     if(f.dateTo&&combinedDate){const e=new Date(f.dateTo);e.setHours(23,59,59,999);if(new Date(combinedDate)>e)return false}
@@ -2018,7 +2033,7 @@ function applyFilters(cases,f){
 }
 
 function getFacetSubset(){
-  const f = { ...filters, subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'' };
+  const f = { ...filters, subtipoPLD:'', risco:'', responsavel:'', status:'', sla:'', parecerIA:'' };
   return applyFilters(allCases, f);
 }
 
@@ -3554,6 +3569,16 @@ function renderFilters(){
           <option value="">Todos os SLA</option>
           ${slaOptions}
         </select>`;
+  const parecerCats = ['Sem Parecer','Com Parecer','Risco BAIXO','Risco MÉDIO','Risco MÉDIO-ALTO','Risco ALTO'];
+  const parecerSet = new Set(subset.map(c=>c.parecerIaCat||'Sem Parecer'));
+  const parecerOpts = parecerCats.filter(p=>parecerSet.has(p));
+  if (filters.parecerIA && !parecerSet.has(filters.parecerIA)) filters.parecerIA = '';
+  if (parecerOpts.length) {
+    h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.parecerIA=this.value;renderAll()">
+            <option value="">Todos os Pareceres IA PLD</option>
+            ${parecerOpts.map(p=>`<option value="${p}"${filters.parecerIA===p?' selected':''}>${p}</option>`).join('')}
+          </select>`;
+  }
   h += `<button id="btnClearFilters" class="filter-input" style="height:36px;cursor:pointer;min-width:180px" onclick="clearOnlyFilters()">Limpar filtros</button>`;
   document.getElementById('filtersSection').innerHTML = h;
 
