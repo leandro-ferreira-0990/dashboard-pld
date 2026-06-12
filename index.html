@@ -1378,7 +1378,29 @@ function parseWorkbook(wb){
       });
     }
   }
-  return results;
+  // Deduplicate cases by id (Chave). The Jira export may contain the same case
+  // multiple times (e.g. across sheets or stale rows), which inflates the
+  // "Abertos" count in "Correlação por CPF / Pessoa" for users whose cases are
+  // actually closed. When duplicates exist, keep the most recently updated
+  // row; on ties, prefer a closed (non-open) status over an open one.
+  const OPEN_SET = new Set(OPEN_STATUSES);
+  const byId = new Map();
+  const ts = d => (d ? new Date(d).getTime() : 0);
+  const score = c => Math.max(ts(c.atualizado), ts(c.resolvido), ts(c.criado));
+  for (const c of results) {
+    const existing = byId.get(c.id);
+    if (!existing) { byId.set(c.id, c); continue; }
+    const sExisting = score(existing);
+    const sNew = score(c);
+    if (sNew > sExisting) { byId.set(c.id, c); continue; }
+    if (sNew === sExisting) {
+      // Prefer the closed/resolved row when timestamps tie
+      const existingOpen = OPEN_SET.has(existing.status);
+      const newOpen = OPEN_SET.has(c.status);
+      if (existingOpen && !newOpen) byId.set(c.id, c);
+    }
+  }
+  return Array.from(byId.values());
 }
 
 // ==================== PERSON CORRELATION ====================
