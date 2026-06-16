@@ -1269,7 +1269,7 @@ function normTipo(raw){
   if(/respons[aá]vel/i.test(s))return"Jogo Responsável";
   if(/compliance/i.test(s))return"Compliance";
   if(/afiliados/i.test(s))return"KYP Afiliados";
-  if(/passagem/i.test(s))return"Contas de passagem";
+  if(/passagem/i.test(s))return"Contas de Passagem";
   return s||"KYP Afiliados";
 }
 
@@ -1284,14 +1284,13 @@ function normRisco(raw) {
 function detectSubtipoPLD(resumo, tipo){
   if(tipo !== "Alerta PLD") return "";
   const t = String(resumo || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  if ((t.includes("deposit") || t.includes("deposito") || t.includes("depositos")) && t.includes("50k") && t.includes("mes")) return "Depósitos 50k Mês";
-  if ((t.includes("deposit") || t.includes("deposito") || t.includes("depositos")) && t.includes("30k") && (t.includes("unit") || t.includes("unico") || t.includes("unidade"))) return "Depositos 30k unit";
-  if (t.includes("conta") && t.includes("passagem")) return "Contas de Passagem";
-  if (t.includes("pep") && ((t.includes("deposit") || t.includes("deposito") || t.includes("depositos")) || t.includes("20k"))) return "PEP Depósitos 20k";
-  if (t.includes("50k") && t.includes("mes")) return "Depósitos 50k Mês";
-  if (t.includes("30k") && (t.includes("unit") || t.includes("unico") || t.includes("unidade"))) return "Depositos 30k unit";
+  // Normalização por palavra-chave única — agrupa todas as variações do Jira
+  // em quatro subtipos fixos. PEP é verificado primeiro para que alertas como
+  // "PEP Depósitos 50k Mês" caiam em "Movimentação PEP" e não em "50k Mensal".
+  if (t.includes("pep")) return "Movimentação PEP";
+  if (t.includes("50k")) return "50k Mensal";
+  if (t.includes("30k")) return "30k Unitário";
   if (t.includes("passagem")) return "Contas de Passagem";
-  if (t.includes("pep") && t.includes("20k")) return "PEP Depósitos 20k";
   return "";
 }
 
@@ -2389,10 +2388,10 @@ function getLast12MonthsHighRiskSubtypes(cases, nMonths=12, endMonthKey=null){
     if(!key||!map.has(key)) return;
     const s=(c.subtipo_pld||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
     const b=map.get(key);
-    if(s.includes('50')) b.k50++;
+    if(s.includes('pep')) b.pep++;
+    else if(s.includes('50')) b.k50++;
     else if(s.includes('30')) b.k30++;
     else if(s.includes('passagem')) b.passagem++;
-    else if(s.includes('pep')) b.pep++;
   });
   return months;
 }
@@ -3112,10 +3111,10 @@ grid.appendChild(pldToolbarWrapper);
   subCard.className = 'chart-card span-2';
   subCard.style.cssText = 'min-height:560px;display:flex;flex-direction:column;';
   const subRowsDef = [
-    {label:'Depósitos 50k/Mês',   bg:'hsl(217,45%,22%)', key:'k50'},
-    {label:'Depósitos 30k Unit.', bg:'hsl(38,55%,55%)',  key:'k30'},
-    {label:'Contas de Passagem',  bg:'hsl(197,50%,62%)', key:'passagem'},
-    {label:'PEP Depósitos 20k',   bg:'hsl(75,60%,48%)',  key:'pep'}
+    {label:'50k Mensal',         bg:'hsl(217,45%,22%)', key:'k50'},
+    {label:'30k Unitário',       bg:'hsl(38,55%,55%)',  key:'k30'},
+    {label:'Contas de Passagem', bg:'hsl(197,50%,62%)', key:'passagem'},
+    {label:'Movimentação PEP',   bg:'hsl(75,60%,48%)',  key:'pep'}
   ];
   const subTableRows = subRowsDef.map(row=>`<tr>
     <td style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:${row.bg};display:inline-block"></span>${row.label}</td>
@@ -3143,10 +3142,10 @@ grid.appendChild(pldToolbarWrapper);
     data:{
       labels:sub.map(s=>s.label),
       datasets:[
-        {label:'Depósitos 50k/Mês',data:sub.map(s=>s.k50),backgroundColor:'hsl(217,45%,22%)',stack:'sub',borderRadius:4},
-        {label:'Depósitos 30k Unit.',data:sub.map(s=>s.k30),backgroundColor:'hsl(38,55%,55%)',stack:'sub',borderRadius:4},
+        {label:'50k Mensal',data:sub.map(s=>s.k50),backgroundColor:'hsl(217,45%,22%)',stack:'sub',borderRadius:4},
+        {label:'30k Unitário',data:sub.map(s=>s.k30),backgroundColor:'hsl(38,55%,55%)',stack:'sub',borderRadius:4},
         {label:'Contas de Passagem',data:sub.map(s=>s.passagem),backgroundColor:'hsl(197,50%,62%)',stack:'sub',borderRadius:4},
-        {label:'PEP Depósitos 20k',data:sub.map(s=>s.pep),backgroundColor:'hsl(75,60%,48%)',stack:'sub',borderRadius:4}
+        {label:'Movimentação PEP',data:sub.map(s=>s.pep),backgroundColor:'hsl(75,60%,48%)',stack:'sub',borderRadius:4}
       ]
     },
     options:{
@@ -3557,7 +3556,7 @@ function renderFilters(){
           <option value="">Todos os tipos</option>
           ${tipos.map(t=>`<option${filters.tipo===t?' selected':''}>${t}</option>`).join('')}
         </select>`;
-  const subtiposPLD = ['Depósitos 50k Mês','Depositos 30k unit','Contas de Passagem','PEP Depósitos 20k'];
+  const subtiposPLD = ['50k Mensal','30k Unitário','Contas de Passagem','Movimentação PEP'];
   const subtipoSet = new Set(subset.filter(c=>c.tipo==='Alerta PLD').map(c=>c.subtipo_pld).filter(Boolean));
   const subtipoOptions = subtiposPLD.filter(s=>subtipoSet.has(s));
   if (filters.subtipoPLD && !subtipoSet.has(filters.subtipoPLD)) filters.subtipoPLD = '';
