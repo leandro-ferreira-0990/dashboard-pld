@@ -880,10 +880,37 @@ input:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-
 /* SLA panels */
 .sla-alert-card{ padding: 1rem 1.05rem; border-radius: 14px; box-shadow: var(--shadow-xs); }
 .sla-alert-title{ font-size: .92rem; border-bottom: 1px solid var(--border); }
-.sla-alert-item{ padding: .55rem .6rem; border-radius: 8px; border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
-.sla-alert-item:hover{ background: color-mix(in oklab, var(--muted) 70%, transparent); }
-.sla-critical{ background: hsla(0,78%,47%,.07); border-left: 3px solid var(--risk-high); }
-.sla-warning{ background: hsla(38,95%,50%,.08); border-left: 3px solid var(--risk-med); }
+.sla-alert-list{ display:flex; flex-direction:column; gap:.55rem; padding: .25rem; }
+.sla-alert-item{
+  padding: .65rem .75rem;
+  border-radius: 10px;
+  border-bottom: none;
+  background: color-mix(in oklab, var(--card) 92%, var(--muted) 8%);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: var(--shadow-xs);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.sla-alert-item:hover{
+  background: color-mix(in oklab, var(--card) 85%, var(--muted) 15%);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: color-mix(in oklab, var(--border) 100%, transparent);
+}
+.sla-critical{ background: var(--card); border-left: 3px solid var(--risk-high); }
+.sla-warning{ background: var(--card); border-left: 3px solid var(--risk-med); }
+.sla-alert-meta{
+  display:flex; flex-wrap:wrap; gap:.35rem .8rem;
+  font-size:.68rem; color: var(--muted-fg);
+  margin-top: 4px;
+}
+.sla-alert-meta span{ display:inline-flex; align-items:center; gap:.25rem; }
+.sla-alert-meta strong{ color: var(--foreground); font-weight:600; }
+.sla-alert-summary{
+  font-size:.7rem; color: var(--muted-fg);
+  margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
 
 /* Badges & botões pequenos */
 .badge, .completed-badge, .badge-sla-days{
@@ -1053,7 +1080,7 @@ body > aside#appSidebar{
   grid-column:1; grid-row:1 / span 2;
   border-right:1px solid var(--lo-line);
   background:linear-gradient(180deg, #0b0b0e 0%, #0a0a0d 100%);
-  padding:1.25rem 0.875rem;
+  padding:0.25rem 0.875rem 1.25rem;
   display:flex; flex-direction:column; gap:1.25rem;
   position:sticky; top:0; height:100vh; overflow-y:auto;
   z-index:30;
@@ -1418,6 +1445,32 @@ html:not(.dark) body{ background:#f7f7f8; }
 html:not(.dark) .kpi-value{ color:#0a0a0a; }
 </style>
 
+
+<style id="sidebar-to-topbar-override">
+  body{ grid-template-columns: 1fr !important; grid-template-rows: auto auto 1fr !important; }
+  body > aside#appSidebar{
+    grid-column: 1 !important; grid-row: 1 !important;
+    position: static !important; height: auto !important;
+    flex-direction: row !important; align-items: center !important; flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+    padding: 0.5rem 1rem !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--lo-line) !important;
+    overflow-y: visible !important;
+  }
+  body > header{ grid-column: 1 !important; grid-row: 2 !important; }
+  body > main{ grid-column: 1 !important; grid-row: 3 !important; }
+  #appSidebar .lo-section-label{ display:none !important; }
+  #appSidebar .lo-nav{ flex-direction: row !important; flex-wrap: wrap !important; gap: 4px !important; }
+  #appSidebar .lo-nav-item{ padding: 6px 10px !important; }
+  #appSidebar .lo-side-footer{ margin-left:auto !important; border-top:none !important; padding-top:0 !important; }
+
+  html, body{ max-width:100vw; overflow-x:hidden; }
+  body > main, body > header{ min-width:0; max-width:100vw; }
+  body > main{ overflow-x:hidden; }
+  .table-wrap, .tab-content, .card{ max-width:100%; overflow-x:auto; }
+  table.data-table{ max-width:100%; }
+</style>
 </head>
 <body>
 
@@ -1463,7 +1516,7 @@ html:not(.dark) .kpi-value{ color:#0a0a0a; }
   </div>
 
   <div class="lo-side-footer">
-    <div class="lo-avatar">LF</div>
+    <div class="lo-avatar">Stellar Gaming</div>
     <div style="flex:1; min-width:0;">
       <div class="who"></div>
       <div class="role">PLD</div>
@@ -2302,15 +2355,27 @@ function renderSlaAlerts(cases){
       ? `<button class="btn-done" onclick="markAsDone('${c.id}')" title="Marcar como concluído temporariamente">✓ Feito</button>`
       : `<button class="btn-undone" onclick="markAsUndone('${c.id}')" title="Desfazer conclusão">↺ Desfazer</button>`;
     
+    const criadoStr = c.criado ? new Date(c.criado).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '—';
+    const subtipo = c.subtipo_pld ? ` › ${c.subtipo_pld}` : '';
+    const resumo = (c.resumo || '').toString().trim();
     return `
       <div class="sla-alert-item ${c.remainingDays < 0 ? 'sla-critical' : (c.remainingDays <= 2 ? 'sla-warning' : '')}">
         <div style="flex:1; min-width:0">
-          <a href="${JIRA_BASE_URL}${c.id}" target="_blank" class="mono-id" style="font-size:11px">${c.id}</a>
-          <div style="font-size:0.7rem; color:var(--muted-fg); margin-top:2px">${c.responsavel || 'Sem responsável'} | ${c.tipo} &bull; <span style='color:var(--foreground);font-style:italic'>${c.status}</span></div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <a href="${JIRA_BASE_URL}${c.id}" target="_blank" class="mono-id" style="font-size:11px">${c.id}</a>
+            <span class="badge ${rBadge}" style="font-size:0.6rem">${c.risco}</span>
+          </div>
+          <div style="font-size:0.72rem; color:var(--foreground); margin-top:3px; font-weight:500">${c.tipo}${subtipo}</div>
+          <div class="sla-alert-meta">
+            <span>👤 <strong>${c.responsavel || 'Sem responsável'}</strong></span>
+            <span>📅 Criado <strong>${criadoStr}</strong></span>
+            <span>● <em>${c.status}</em></span>
+            ${dataVencimentoStr ? `<span>⏰ Vence <strong>${dataVencimentoStr}</strong></span>` : ''}
+          </div>
+          ${resumo ? `<div class="sla-alert-summary" title="${resumo.replace(/"/g,'&quot;')}">${resumo}</div>` : ''}
         </div>
-        <div style="text-align:right">
-          <span class="badge ${rBadge}" style="font-size:0.65rem">${c.risco}</span>
-          <span class="badge-sla-days ${remainingClass}" style="margin-left:6px" title="${tooltip}">${remainingText}</span>
+        <div style="text-align:right; display:flex; flex-direction:column; gap:4px; align-items:flex-end">
+          <span class="badge-sla-days ${remainingClass}" title="${tooltip}">${remainingText}</span>
           ${buttonHtml}
         </div>
       </div>
