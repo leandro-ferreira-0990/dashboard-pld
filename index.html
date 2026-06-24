@@ -13,7 +13,7 @@ setTimeout(() => {
     const stats = getMonthlyTrendData(allCases);
     const histKeys = Object.keys(stats.history || {}).sort();
     const last3 = histKeys.slice(-3);
-
+	
     if (!last3.length) return;
 
     const avgEntries = last3.reduce((a,k)=>a+(stats.history[k]?.entries||0),0)/last3.length;
@@ -5993,85 +5993,7 @@ setTimeout(() => {
 </script>
 
 
-<script>
-/* ===== Header grudado no topo via JS (não mexe no grid/overflow) ===== */
-(function(){
-  if(window.__stickyHeaderInit) return; window.__stickyHeaderInit = true;
 
-  function init(){
-    const header = document.querySelector('header');
-    if(!header) return;
-
-    // spacer ocupa o espaço do header quando ele vira fixed
-    let spacer = document.getElementById('headerSpacer');
-    if(!spacer){
-      spacer = document.createElement('div');
-      spacer.id = 'headerSpacer';
-      spacer.style.display = 'none';
-      header.parentNode.insertBefore(spacer, header.nextSibling);
-    }
-
-    let fixed = false;
-    let baseTop = 0;
-
-    function measure(){
-      // posição natural do header relativo ao documento (quando não fixed)
-      if(!fixed){
-        const r = header.getBoundingClientRect();
-        baseTop = r.top + window.scrollY;
-      }
-    }
-
-    function apply(){
-      const r = header.getBoundingClientRect();
-      // largura/left atuais para manter alinhamento com a coluna de conteúdo
-      const rect = fixed ? spacer.getBoundingClientRect() : header.getBoundingClientRect();
-      const left = rect.left;
-      const width = rect.width;
-
-      if(window.scrollY > baseTop && !fixed){
-        fixed = true;
-        spacer.style.height = header.offsetHeight + 'px';
-        spacer.style.display = 'block';
-        header.style.position = 'fixed';
-        header.style.top = '0';
-        header.style.left = left + 'px';
-        header.style.width = width + 'px';
-        header.style.zIndex = '500';
-        header.style.boxShadow = '0 6px 20px -10px rgba(0,0,0,.5)';
-      } else if(window.scrollY <= baseTop && fixed){
-        fixed = false;
-        spacer.style.display = 'none';
-        header.style.position = '';
-        header.style.top = '';
-        header.style.left = '';
-        header.style.width = '';
-        header.style.zIndex = '';
-        header.style.boxShadow = '';
-      } else if(fixed){
-        // manter alinhado em resize
-        const sr = spacer.getBoundingClientRect();
-        header.style.left = sr.left + 'px';
-        header.style.width = sr.width + 'px';
-      }
-    }
-
-    measure();
-    window.addEventListener('scroll', apply, {passive:true});
-    window.addEventListener('resize', function(){
-      if(fixed){ // recalcula alinhamento
-        const sr = spacer.getBoundingClientRect();
-        header.style.left = sr.left + 'px';
-        header.style.width = sr.width + 'px';
-      } else { measure(); }
-    });
-  }
-
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init);
-  } else { init(); }
-})();
-</script>
 
 
 <style id="tabs-bottom-search-fix">
@@ -6426,4 +6348,67 @@ setTimeout(() => {
   /* desliga glow no hover das badges */
   .badge:hover{ text-shadow:none !important; box-shadow:none !important; filter:none !important; }
 </style>
+
+<style id="header-fixed-fix">
+  /* Header fixo confiável no topo (independe de overflow dos ancestrais) */
+  header.is-fixed{
+    position:fixed !important;
+    top:0 !important; left:0 !important; right:0 !important;
+    width:100% !important;
+    z-index:1000 !important;
+    box-shadow:0 6px 20px -10px rgba(0,0,0,.55) !important;
+  }
+  header.is-fixed .header-inner{
+    max-width:1400px; margin:0 auto;
+    padding-left:24px; padding-right:24px;
+  }
+  #headerSpacerFix{ display:none; }
+</style>
+<script>
+/* ===== Header fixo no topo (robusto p/ GitHub Pages e qualquer host) ===== */
+(function(){
+  if(window.__headerFixedInit) return; window.__headerFixedInit = true;
+  function init(){
+    var header = document.querySelector('header');
+    if(!header) return;
+    // garante que nenhum ancestral quebre o comportamento usando fixed (nao sticky)
+    var spacer = document.getElementById('headerSpacerFix');
+    if(!spacer){
+      spacer = document.createElement('div');
+      spacer.id = 'headerSpacerFix';
+      header.parentNode.insertBefore(spacer, header.nextSibling);
+    }
+    var threshold = 0;
+    function measure(){
+      if(!header.classList.contains('is-fixed')){
+        threshold = header.getBoundingClientRect().top + window.scrollY;
+      }
+    }
+    function onScroll(){
+      if(window.scrollY > threshold + 1){
+        if(!header.classList.contains('is-fixed')){
+          spacer.style.height = header.offsetHeight + 'px';
+          spacer.style.display = 'block';
+          header.classList.add('is-fixed');
+        }
+      } else {
+        if(header.classList.contains('is-fixed')){
+          header.classList.remove('is-fixed');
+          spacer.style.display = 'none';
+        }
+      }
+    }
+    measure();
+    window.addEventListener('scroll', onScroll, {passive:true});
+    window.addEventListener('resize', function(){
+      if(!header.classList.contains('is-fixed')) measure();
+      onScroll();
+    });
+    onScroll();
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else { init(); }
+})();
+</script>
 </html>
