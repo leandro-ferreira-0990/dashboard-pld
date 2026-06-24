@@ -13,7 +13,7 @@ setTimeout(() => {
     const stats = getMonthlyTrendData(allCases);
     const histKeys = Object.keys(stats.history || {}).sort();
     const last3 = histKeys.slice(-3);
-	
+
     if (!last3.length) return;
 
     const avgEntries = last3.reduce((a,k)=>a+(stats.history[k]?.entries||0),0)/last3.length;
@@ -5102,7 +5102,7 @@ makeChart = function(canvasId, config){
   if(canvasId === 'chTimeline' || canvasId === 'chRes'){
     config.options = config.options || {};
     config.options.plugins = config.options.plugins || {};
-    config.options.plugins.datalabels = { ...Chart.defaults.plugins.datalabels, color: isDark ? '#e5e7eb' : '#0f2a3d' };
+    config.options.plugins.datalabels = { ...Chart.defaults.plugins.datalabels, color: '#ffffff' };
   }
   return __makeChartThemeAware(canvasId, config);
 };
@@ -5110,7 +5110,7 @@ makeChart = function(canvasId, config){
 function applyChartThemeColors(){
   if (typeof Chart === 'undefined') return;
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const textColor = isDark ? '#e5e7eb' : '#0f172a';
+  const textColor = '#ffffff';
   const gridColor = isDark ? 'rgba(148,163,184,0.25)' : 'rgba(100,116,139,0.25)';
   Chart.defaults.color = textColor;
   Chart.defaults.borderColor = gridColor;
@@ -6411,4 +6411,222 @@ setTimeout(() => {
   } else { init(); }
 })();
 </script>
+
+<style id="sla-hover-refine">
+
+  /* base: cantos arredondados, SEM barra lateral colorida em estado algum */
+  .sla-alert-item,
+  .sla-alert-item.sla-critical,
+  .sla-alert-item.sla-warning,
+  .sla-alert-item.sla-done-item{
+    border-radius:14px !important;
+    border:1px solid color-mix(in oklab, var(--border) 70%, transparent) !important;
+    position:relative !important;
+    transition: transform .18s ease, box-shadow .18s ease, background .18s ease !important;
+  }
+  /* MATA qualquer borda esquerda colorida vinda de blocos antigos (hover/foco/estado) */
+  .sla-alert-item,
+  .sla-alert-item:hover,
+  .sla-alert-item:focus,
+  .sla-alert-item:focus-visible,
+  .sla-alert-item.sla-critical,
+  .sla-alert-item.sla-critical:hover,
+  .sla-alert-item.sla-warning,
+  .sla-alert-item.sla-warning:hover,
+  .sla-alert-item.sla-done-item,
+  .sla-alert-item.sla-done-item:hover,
+  .sla-alert-item.sla-clickable:hover{
+    border-left-color: color-mix(in oklab, var(--border) 70%, transparent) !important;
+    border-left-width: 1px !important;
+    outline: none !important;
+  }
+
+  /* cor de status SÓ para o glow */
+  .sla-alert-item{ --sc: #D9F22A; }
+  .sla-alert-item.sla-critical{ --sc:#f43f5e; }
+  .sla-alert-item.sla-warning{  --sc:#f59e0b; }
+  .sla-alert-item.sla-done-item{ --sc:#22c55e; }
+
+  /* sem bolinha */
+  .sla-alert-item::before{ content:none !important; }
+
+  /* === GLOW vindo de baixo (único efeito) === */
+  .sla-alert-item::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:0; height:55%;
+    border-radius:0 0 14px 14px;
+    background:linear-gradient(to top, color-mix(in oklab, var(--sc) 22%, transparent), transparent 80%);
+    opacity:0;
+    transition:opacity .2s ease;
+    pointer-events:none; z-index:0;
+  }
+  .sla-alert-item > *{ position:relative; z-index:1; }
+  .sla-alert-item:hover{
+    transform:translateY(-1px) !important;
+    box-shadow:0 8px 20px -14px rgba(0,0,0,.5) !important;
+  }
+  .sla-alert-item:hover::after{ opacity:1; }
+</style>
+
+
+
+<style id="glass-blur-extend">
+  /* ===== Glassmorphism estendido v2 — sem faixas, contraste preservado ===== */
+
+  /* SEM blur/faixa na barra de filtros e na barra de datas:
+     remove fundo destacado para nao formar "retangulo" sobre o fundo escuro */
+  .filters, .filters-bar, .filter-bar, .toolbar, .filters-container,
+  .date-filters, .date-bar, .filters-row{
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
+  /* KPI cards e paineis: glass leve, mantendo o fundo escuro (sem clarear) */
+  .kpi-card{
+    background: color-mix(in oklab, var(--card) 86%, transparent) !important;
+    backdrop-filter: saturate(120%) blur(8px) !important;
+    -webkit-backdrop-filter: saturate(120%) blur(8px) !important;
+  }
+  .card, .chart-card, .panel, .sla-panel, .section-card{
+    background: color-mix(in oklab, var(--card) 88%, transparent) !important;
+    backdrop-filter: saturate(118%) blur(7px) !important;
+    -webkit-backdrop-filter: saturate(118%) blur(7px) !important;
+  }
+
+  /* CONTRASTE: garante texto claro em todos os labels/valores no tema escuro */
+  .kpi-card .kpi-label,
+  .kpi-card .kpi-value,
+  .chart-card .chart-title,
+  .chart-title, .card-title, .panel-title{
+    color: var(--foreground) !important;
+  }
+  .dark .kpi-card .kpi-label, html.dark .kpi-card .kpi-label, body.dark .kpi-card .kpi-label{
+    color: var(--muted-fg) !important;
+  }
+  .dark .kpi-card .kpi-value, .dark .chart-title, .dark .card-title,
+  html.dark .kpi-card .kpi-value, html.dark .chart-title{
+    color: #f4f4f5 !important;
+  }
+
+  /* Modal de grafico: glass mais forte (fica bom pois ha fundo atras) */
+  #chartModal .modal-content, .chart-modal .modal-content{
+    background: color-mix(in oklab, var(--card) 84%, transparent) !important;
+    backdrop-filter: saturate(135%) blur(16px) !important;
+    -webkit-backdrop-filter: saturate(135%) blur(16px) !important;
+  }
+</style>
+
+<script id="chart-badge-legibility-fix">
+(function(){
+  // Corrige badges de valor nos graficos (especialmente linha "Evolucao Mensal de Casos"),
+  // que ficavam com fundo azul-escuro ilegivel por causa do darkenColor.
+  function patch(){
+    if (typeof window.darkenColor === 'function' && !window.__darkenPatched){
+      var _old = window.darkenColor;
+      window.darkenColor = function(color, delta){
+        // No tema escuro, em vez de ESCURECER (gera badge ilegivel), CLAREIA levemente
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var str = String(color || '');
+        var m = str.match(/hsla?\(([-\d.]+),\s*([\d.]+)%?,\s*([\d.]+)%?(?:,\s*([\d.]+))?\)/i);
+        if(!m) return _old(color, delta);
+        var h=m[1], s=m[2], l=Number(m[3]), a=m[4];
+        var nextL = isDark ? Math.min(72, l + 18) : Math.max(28, l - 16);
+        return (str.toLowerCase().indexOf('hsla')===0)
+          ? 'hsl('+h+','+s+'%,'+nextL+'%)'   // badge solida (sem transparencia) p/ contraste
+          : 'hsl('+h+','+s+'%,'+nextL+'%)';
+      };
+      window.__darkenPatched = true;
+    }
+  }
+  patch();
+
+  // Forca cor de texto das badges para escuro (legivel sobre fundo claro/vivido)
+  if (typeof Chart !== 'undefined' && Chart.defaults && Chart.defaults.plugins){
+    Chart.defaults.plugins.datalabels = Object.assign({}, Chart.defaults.plugins.datalabels, {
+      color: '#ffffff'
+    });
+  }
+
+  // Re-renderiza os graficos para aplicar (se houver funcao de render disponivel)
+  function rerender(){
+    try{
+      if (typeof window.applyFilters === 'function'){ window.applyFilters(); return; }
+      if (typeof window.renderCharts === 'function' && window.__lastCases){ window.renderCharts(window.__lastCases); return; }
+      if (typeof window.refreshDashboard === 'function'){ window.refreshDashboard(); return; }
+      // fallback: atualiza instancias existentes forcando cor de texto escura nas badges
+      if (typeof chartInstances !== 'undefined' && chartInstances){
+        chartInstances.forEach(function(c){
+          try{
+            (c.data.datasets||[]).forEach(function(ds){
+              if(ds.datalabels){ ds.datalabels.color = '#ffffff'; }
+            });
+            c.update();
+          }catch(e){}
+        });
+      }
+    }catch(e){}
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ patch(); setTimeout(rerender, 400); });
+  } else {
+    setTimeout(function(){ patch(); rerender(); }, 400);
+  }
+})();
+</script>
 </html>
+
+<style id="forca-eixos-legendas-branco">
+/* === Força textos de eixos, legendas e títulos dos gráficos em BRANCO === */
+.chart-title, .card-title, .panel-title { color:#ffffff !important; }
+.chart-card .chart-title { color:#ffffff !important; }
+/* Texto SVG (caso alguma lib renderize em SVG) */
+.chart-card svg text,
+.chart-card svg tspan { fill:#ffffff !important; }
+/* Legendas HTML geradas por libs de gráfico */
+.chartjs-legend li, .chartjs-legend span { color:#ffffff !important; }
+</style>
+
+<script id="forca-chart-branco">
+(function(){
+  function forceWhite(){
+    if (typeof Chart === 'undefined') return;
+    try {
+      Chart.defaults.color = '#ffffff';
+      if (Chart.defaults.plugins && Chart.defaults.plugins.legend){
+        Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color:'#ffffff' });
+      }
+    } catch(e){}
+    try {
+      if (typeof chartInstances !== 'undefined' && chartInstances && chartInstances.length){
+        chartInstances.forEach(function(c){
+          try {
+            if (c.options && c.options.scales){
+              Object.values(c.options.scales).forEach(function(scale){
+                scale.ticks = Object.assign({}, scale.ticks||{}, { color:'#ffffff' });
+                if (scale.title){ scale.title = Object.assign({}, scale.title, { color:'#ffffff' }); }
+              });
+            }
+            if (!c.options.plugins) c.options.plugins = {};
+            if (!c.options.plugins.legend) c.options.plugins.legend = {};
+            c.options.plugins.legend.labels = Object.assign({}, c.options.plugins.legend.labels||{}, { color:'#ffffff' });
+            (c.data.datasets||[]).forEach(function(ds){
+              if (ds.datalabels){ ds.datalabels.color = '#ffffff'; }
+            });
+            c.update('none');
+          } catch(e){}
+        });
+      }
+    } catch(e){}
+  }
+  // Roda agora, ao carregar e periodicamente (cobre re-renders por filtros)
+  forceWhite();
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', forceWhite);
+  }
+  window.addEventListener('load', forceWhite);
+  // Patch nas funções de render se existirem, para reaplicar após cada update
+  setInterval(forceWhite, 1500);
+})();
+</scrip
