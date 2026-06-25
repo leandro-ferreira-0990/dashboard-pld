@@ -7056,6 +7056,16 @@ html:not(.dark) body .kpi-card[style]{
 }
 </style>
 
+
+<style id="remove-old-tooltip-final">
+/* remove tooltip antigo (caixinha pequena com borda verde) */
+.kpi-card[data-tip]::after,
+.kpi-card[data-tip]::before{
+  display:none !important;
+  content:none !important;
+}
+</style>
+
 </html>
 
 <style id="forca-eixos-legendas-branco">
