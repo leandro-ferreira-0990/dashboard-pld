@@ -657,7 +657,7 @@ a:hover{color:var(--link-hover)}
   border-bottom: none !important;
 }
 #filtersSection { margin-top: 1rem; }
-#dateFilters { margin-bottom: 1rem; }
+#dateFiltersLEGACYOFF { margin-bottom: 1rem; }
 
 
 .trend-summary-title{font-size:0.82rem;font-weight:800;margin-bottom:.85rem;color:var(--foreground)}
@@ -1260,7 +1260,9 @@ main > * + *{ margin-top:1.25rem !important; }
   margin-bottom:1.25rem !important;
 }
 .kpi-card{
-  background: linear-gradient(180deg, var(--lo-elev), var(--lo-surface)) !important;
+  background: rgba(18,20,25,0.16) !important;
+  backdrop-filter: saturate(150%) blur(20px) !important;
+  -webkit-backdrop-filter: saturate(150%) blur(20px) !important;
   border:1px solid var(--lo-line) !important;
   border-radius:var(--lo-radius) !important;
   padding:1rem 1.1rem !important;
@@ -1541,7 +1543,7 @@ header h1{ font-size:.98rem !important; font-weight:700 !important; }
 
 /* ---- 4) KPI cards ---- */
 .kpi-grid{ gap:.9rem !important; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)) !important; }
-.kpi-card{ background:var(--mp-surface) !important; border:1px solid var(--mp-line) !important; border-radius:var(--mp-radius) !important; padding:1.1rem 1.2rem !important; text-align:left !important; box-shadow:var(--mp-shadow-sm) !important; }
+.kpi-card{ background:rgba(18,20,25,0.16) !important; border:1px solid rgba(217,242,42,.28) !important; border-radius:var(--mp-radius) !important; padding:1.1rem 1.2rem !important; text-align:left !important; backdrop-filter:saturate(150%) blur(20px) !important; -webkit-backdrop-filter:saturate(150%) blur(20px) !important; box-shadow:var(--mp-shadow-sm) !important; }
 .kpi-card::before{ background:linear-gradient(90deg,transparent,color-mix(in oklab,var(--mp-text) 8%,transparent),transparent) !important; }
 .kpi-card:hover{ border-color:var(--mp-line-strong) !important; box-shadow:var(--mp-shadow-md) !important; transform:none !important; }
 .kpi-label{ color:var(--mp-faint) !important; font-size:.66rem !important; letter-spacing:.1em !important; text-transform:uppercase; font-weight:600 !important; }
@@ -4542,8 +4544,97 @@ function clearDateFilters(){
   renderAll();
 }
 
+
+/* ===== DATE PICKER CUSTOMIZADO (verde-limão) ===== */
+window.__dpState = { open:null };
+window.openDatePicker = function(triggerEl, which){
+  closeDatePicker();
+  const cur = (which==='from'? filters.dateFrom : filters.dateTo) || '';
+  let view = cur ? new Date(cur+'T00:00:00') : new Date();
+  if (isNaN(view)) view = new Date();
+  view.setDate(1);
+
+  const pop = document.createElement('div');
+  pop.className = 'dp-pop';
+  pop.addEventListener('click', e=>e.stopPropagation());
+  document.body.appendChild(pop);
+
+  function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  const MN = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const WD = ['D','S','T','Q','Q','S','S'];
+
+  function render(){
+    const y=view.getFullYear(), m=view.getMonth();
+    const first=new Date(y,m,1).getDay();
+    const days=new Date(y,m+1,0).getDate();
+    const sel = (which==='from'? filters.dateFrom : filters.dateTo);
+    const other = (which==='from'? filters.dateTo : filters.dateFrom);
+    const todayStr = ymd(new Date());
+    let cells='';
+    for(let i=0;i<first;i++) cells+='<span class="dp-d dp-empty"></span>';
+    for(let d=1;d<=days;d++){
+      const ds=ymd(new Date(y,m,d));
+      let cls='dp-d';
+      if(ds===sel) cls+=' dp-sel';
+      if(ds===todayStr) cls+=' dp-today';
+      cells+=`<button type="button" class="${cls}" data-d="${ds}">${d}</button>`;
+    }
+    pop.innerHTML=`
+      <div class="dp-head">
+        <button type="button" class="dp-nav" data-nav="-1">‹</button>
+        <div class="dp-title">${MN[m]} ${y}</div>
+        <button type="button" class="dp-nav" data-nav="1">›</button>
+      </div>
+      <div class="dp-week">${WD.map(w=>`<span>${w}</span>`).join('')}</div>
+      <div class="dp-grid">${cells}</div>
+      <div class="dp-foot">
+        <button type="button" class="dp-today-btn" data-today="1">Hoje</button>
+        <button type="button" class="dp-clear-btn" data-clear="1">Limpar</button>
+      </div>`;
+    pop.querySelectorAll('.dp-nav').forEach(b=>b.onclick=()=>{ view.setMonth(view.getMonth()+parseInt(b.dataset.nav)); render(); });
+    pop.querySelectorAll('.dp-d[data-d]').forEach(b=>b.onclick=()=>{ pick(b.dataset.d); });
+    pop.querySelector('.dp-today-btn').onclick=()=>{ pick(todayStr); };
+    pop.querySelector('.dp-clear-btn').onclick=()=>{ pick(''); };
+  }
+  function pick(ds){
+    if(which==='from') filters.dateFrom=ds; else filters.dateTo=ds;
+    // mantém coerência: se from > to, alinha
+    if(filters.dateFrom && filters.dateTo && filters.dateFrom>filters.dateTo){
+      if(which==='from') filters.dateTo=filters.dateFrom; else filters.dateFrom=filters.dateTo;
+    }
+    closeDatePicker();
+    if(typeof tablePage!=='undefined') tablePage=0;
+    renderAll();
+  }
+  render();
+
+  // posiciona abaixo do gatilho
+  const r = triggerEl.getBoundingClientRect();
+  const top = r.bottom + window.scrollY + 6;
+  let left = r.left + window.scrollX;
+  pop.style.top = top+'px';
+  // evita estourar à direita
+  const pw = pop.offsetWidth || 260;
+  if(left + pw > window.scrollX + document.documentElement.clientWidth - 8){
+    left = window.scrollX + document.documentElement.clientWidth - pw - 8;
+  }
+  pop.style.left = Math.max(8, left)+'px';
+
+  window.__dpState.open = pop;
+  setTimeout(()=>{ document.addEventListener('click', closeDatePicker, {once:true}); },0);
+  document.addEventListener('keydown', escClose);
+};
+function escClose(e){ if(e.key==='Escape') closeDatePicker(); }
+function closeDatePicker(){
+  if(window.__dpState && window.__dpState.open){
+    window.__dpState.open.remove();
+    window.__dpState.open=null;
+    document.removeEventListener('keydown', escClose);
+  }
+}
+
 function clearOnlyFilters(){
-  filters.tipo=''; filters.subtipoPLD=''; filters.risco=''; filters.responsavel=''; filters.status=''; filters.sla=''; filters.text='';
+  filters.tipo=''; filters.subtipoPLD=''; filters.risco=''; filters.responsavel=''; filters.status=''; filters.sla=''; filters.parecerIA=''; filters.text='';
   tablePage = 0;
   expandedPerson = null;
   personSearch = '';
@@ -4572,60 +4663,114 @@ function renderFilters(){
   const hasClosed = subset.some(c=>!isOpen(c.status) && !isCoaf(c.status));
   const hasCoaf   = subset.some(c=>isCoaf(c.status));
 
-  let h = ``;
-  h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.tipo=this.value;renderAll()">
+  const field = (label, controlHtml) => `<div class="filter-field"><span class="filter-field-label">${label}</span>${controlHtml}</div>`;
+
+  const activeCount = ['tipo','subtipoPLD','risco','responsavel','status','sla','parecerIA','text']
+    .filter(k=>filters[k]).length;
+
+  // ---- monta cada campo num array, na ordem ----
+  const F = [];
+
+  F.push(field('Tipo', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.tipo=this.value;renderAll()">
           <option value="">Todos os tipos</option>
           ${tipos.map(t=>`<option${filters.tipo===t?' selected':''}>${t}</option>`).join('')}
-        </select>`;
+        </select>`));
+
   const subtiposPLD = ['50k Mensal','30k Unitário','Contas de Passagem','Movimentação PEP'];
   const subtipoSet = new Set(subset.filter(c=>c.tipo==='Alerta PLD').map(c=>c.subtipo_pld).filter(Boolean));
   const subtipoOptions = subtiposPLD.filter(s=>subtipoSet.has(s));
   if (filters.subtipoPLD && !subtipoSet.has(filters.subtipoPLD)) filters.subtipoPLD = '';
   if ((!filters.tipo || filters.tipo === 'Alerta PLD') && subtipoOptions.length) {
-    h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.subtipoPLD=this.value;renderAll()">
-            <option value="">Todos os subtipos PLD</option>
+    F.push(field('Subtipo PLD', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.subtipoPLD=this.value;renderAll()">
+            <option value="">Todos os subtipos</option>
             ${subtipoOptions.map(s=>`<option value="${s}"${filters.subtipoPLD===s?' selected':''}>${s}</option>`).join('')}
-          </select>`;
+          </select>`));
   }
-  h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.risco=this.value;renderAll()">
+
+  F.push(field('Risco', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.risco=this.value;renderAll()">
           <option value="">Todos os riscos</option>
           ${['Alto','Médio','Baixo'].filter(r=>riscoSet.has(r)).map(r=>`<option${filters.risco===r?' selected':''}>${r}</option>`).join('')}
-        </select>`;
+        </select>`));
+
   const resps = Array.from(respsSet).sort();
-  h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.responsavel=this.value;renderAll()">
+  F.push(field('Responsável', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.responsavel=this.value;renderAll()">
           <option value="">Todos os responsáveis</option>
           ${resps.map(r=>`<option${filters.responsavel===r?' selected':''}>${r}</option>`).join('')}
-        </select>`;
+        </select>`));
+
   const statusOpts = `${hasOpen?`<option value="open"${filters.status==='open'?' selected':''}>Abertos</option>`:''}
                       ${hasClosed?`<option value="closed"${filters.status==='closed'?' selected':''}>Concluídos</option>`:''}
                       ${hasCoaf?`<option value="coaf"${filters.status==='coaf'?' selected':''}>Comunicados</option>`:''}
                       ${Array.from(statusesSet).sort().map(s=>`<option value="${s}"${filters.status===s?' selected':''}>${s}</option>`).join('')}`;
-  h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.status=this.value;renderAll()">
+  F.push(field('Status', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.status=this.value;renderAll()">
           <option value="">Todos os status</option>
           ${statusOpts}
-        </select>`;
+        </select>`));
+
   const slaOrder = ['breached','warning','ok','resolved'];
   const slaLabels = {breached:'⚠ Estourado', warning:'⏳ Em Risco', ok:'✓ No Prazo', resolved:'✅ Resolvido'};
   const slaOptions = slaOrder.filter(k=>slaPossible.includes(k)).map(k=>`<option value="${k}"${filters.sla===k?' selected':''}>${slaLabels[k]}</option>`).join('');
-  h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.sla=this.value;renderAll()">
+  F.push(field('SLA', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.sla=this.value;renderAll()">
           <option value="">Todos os SLA</option>
           ${slaOptions}
-        </select>`;
+        </select>`));
+
   const parecerCats = ['Sem Parecer','Com Parecer','Risco BAIXO','Risco MÉDIO','Risco MÉDIO-ALTO','Risco ALTO'];
   const parecerSet = new Set(subset.map(c=>c.parecerIaCat||'Sem Parecer'));
   const parecerOpts = parecerCats.filter(p=>parecerSet.has(p));
   if (filters.parecerIA && !parecerSet.has(filters.parecerIA)) filters.parecerIA = '';
   if (parecerOpts.length) {
-    h += `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.parecerIA=this.value;renderAll()">
-            <option value="">Todos os Pareceres IA PLD</option>
+    F.push(field('Parecer IA PLD', `<select onclick="event.stopPropagation()" class="filter-select" onchange="filters.parecerIA=this.value;renderAll()">
+            <option value="">Todos os pareceres</option>
             ${parecerOpts.map(p=>`<option value="${p}"${filters.parecerIA===p?' selected':''}>${p}</option>`).join('')}
-          </select>`;
+          </select>`));
   }
-  h += `<button id="btnClearFilters" class="filter-input" style="height:36px;cursor:pointer;min-width:180px" onclick="clearOnlyFilters()">Limpar filtros</button>`;
-  document.getElementById('filtersSection').innerHTML = h;
 
-  let d = `<span class="subtitle">Data Combinada (Transação+Criação)</span><span class="help-tip" title="Usa Data Transação PLD quando existir; senão, Data de Criação.">?</span><span class="subtitle">de:</span><input type="date" class="filter-input" style="width:140px" value="${filters.dateFrom}" onchange="filters.dateFrom=this.value;renderAll()"><span class="subtitle">até:</span><input type="date" class="filter-input" style="width:140px" value="${filters.dateTo}" onchange="filters.dateTo=this.value;renderAll()"><button id="btnClearDates" class="filter-input" style="height:36px;cursor:pointer;margin-left:0.5rem;min-width:220px" onclick="clearDateFilters()">Limpar datas</button>`;
-  document.getElementById('dateFilters').innerHTML = d;
+  // ---- BLOCO ESQUERDO = todos os filtros (selects) | BLOCO DIREITO = data ----
+  const blocoEsq = F.join('');
+
+  const clearBtn = `<button id="btnClearFilters" class="filter-clear-btn filter-clear-btn--lime${activeCount?' has-active':''}" onclick="clearOnlyFilters()" title="Remover todos os filtros aplicados">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      <span>Limpar filtros</span>${activeCount?`<span class="filter-clear-badge">${activeCount}</span>`:''}
+    </button>`;
+
+  const dateActive = (filters.dateFrom||filters.dateTo);
+  const fmtBR = (v)=>{ if(!v) return ''; const p=v.split('-'); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:v; };
+  const dateField = `<div class="filter-field filter-field--date">
+        <span class="filter-field-label">Data Combinada (Transação + Criação) <span class="help-tip" title="Usa Data Transação PLD quando existir; senão, Data de Criação.">?</span></span>
+        <div class="date-range">
+          <span class="date-range-sep">de</span>
+          <button type="button" class="filter-input dp-trigger" data-dp="from" onclick="openDatePicker(this,'from')">
+            <svg class="dp-cal-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="dp-val">${fmtBR(filters.dateFrom)||'Selecionar'}</span>
+          </button>
+          <span class="date-range-sep">até</span>
+          <button type="button" class="filter-input dp-trigger" data-dp="to" onclick="openDatePicker(this,'to')">
+            <svg class="dp-cal-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="dp-val">${fmtBR(filters.dateTo)||'Selecionar'}</span>
+          </button>
+          <button id="btnClearDates" class="filter-clear-btn${dateActive?' has-active':''}" onclick="clearDateFilters()" title="Remover filtro de período">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span>Limpar datas</span>
+          </button>
+        </div>
+      </div>`;
+
+  // ---- dois blocos: esquerda (todos os filtros + botão limpar) + direita (data) ----
+  const h = `<div class="filters-grid">
+      <section class="filters-block filters-block--main">
+        <div class="filters-block-fields">${blocoEsq}</div>
+        <div class="filters-block-actions">${clearBtn}</div>
+      </section>
+      <section class="filters-block filters-block--date">
+        <div class="filters-block-fields filters-block-fields--date">${dateField}</div>
+      </section>
+    </div>`;
+
+  document.getElementById('filtersSection').innerHTML = h;
+  document.getElementById('dateFilters').innerHTML = '';
+  const dfEl = document.getElementById('dateFilters');
+  if (dfEl) dfEl.style.display = 'none';
 }
 
 function renderKPIs(cases){
@@ -6284,6 +6429,38 @@ setTimeout(() => {
     current = card;
   }
 
+  // ===== HOVER: abre o popover ao passar o mouse e fecha ao sair =====
+  var hideTimer = null;
+  function scheduleHide(){
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hide, 120);
+  }
+  function cancelHide(){ clearTimeout(hideTimer); }
+
+  // Abre ao passar o mouse sobre qualquer KPI card com data-tip
+  document.addEventListener('mouseover', function(e){
+    var card = e.target.closest('.kpi-card[data-tip]');
+    if(card){
+      cancelHide();
+      if(current !== card) show(card);
+      return;
+    }
+    // se o mouse esta sobre o proprio popover, nao fecha
+    if(e.target.closest('#kpiPopover')){ cancelHide(); return; }
+  });
+
+  // Fecha ao sair do card (com pequeno atraso para permitir ir ate o popover)
+  document.addEventListener('mouseout', function(e){
+    var fromCard = e.target.closest('.kpi-card[data-tip]');
+    var fromPop  = e.target.closest('#kpiPopover');
+    if(!fromCard && !fromPop) return;
+    // para onde o mouse esta indo
+    var to = e.relatedTarget;
+    if(to && (to.closest && (to.closest('.kpi-card[data-tip]') || to.closest('#kpiPopover')))) return;
+    scheduleHide();
+  });
+
+  // Clique continua funcionando como alternancia (acessibilidade / touch)
   document.addEventListener('click', function(e){
     if(e.target.closest('#kpiPopover .kp-close')){ hide(); return; }
     if(e.target.closest('#kpiPopover')) return;
@@ -6485,9 +6662,9 @@ setTimeout(() => {
 
   /* KPI cards e paineis: glass leve, mantendo o fundo escuro (sem clarear) */
   .kpi-card{
-    background: color-mix(in oklab, var(--card) 86%, transparent) !important;
-    backdrop-filter: saturate(120%) blur(8px) !important;
-    -webkit-backdrop-filter: saturate(120%) blur(8px) !important;
+    background: rgba(18,20,25,0.16) !important;
+    backdrop-filter: saturate(150%) blur(20px) !important;
+    -webkit-backdrop-filter: saturate(150%) blur(20px) !important;
   }
   .card, .chart-card, .panel, .sla-panel, .section-card{
     background: color-mix(in oklab, var(--card) 88%, transparent) !important;
@@ -6575,6 +6752,310 @@ setTimeout(() => {
   }
 })();
 </script>
+
+
+
+
+<style id="kpi-glass-lima">
+  /* ===== VIDRO TRANSLUCIDO REAL nos KPI cards (blur dos filtros atras) ===== */
+  /* alpha baixo p/ o blur ser bem visivel; alta especificidade + !important */
+  html body .kpi-grid .kpi-card,
+  html body #trendCardsGrid .kpi-card,
+  html body .kpi-card[style],
+  html body .kpi-card{
+    background-color: rgba(18, 20, 25, 0.16) !important;
+    background-image: none !important;
+    -webkit-backdrop-filter: saturate(150%) blur(20px) !important;
+    backdrop-filter: saturate(150%) blur(20px) !important;
+    border: 1px solid rgba(217, 242, 42, 0.28) !important;
+    box-shadow: 0 10px 32px -16px rgba(0,0,0,.5),
+                inset 0 1px 0 rgba(255,255,255,.06) !important;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease !important;
+  }
+
+  /* o sparkline/canvas dentro do card nao pode ter fundo opaco cobrindo o blur */
+  html body .kpi-card canvas{ background: transparent !important; }
+
+  /* realce verde lima ao passar o mouse */
+  html body .kpi-grid .kpi-card:hover,
+  html body #trendCardsGrid .kpi-card:hover,
+  html body .kpi-card[style]:hover,
+  html body .kpi-card:hover{
+    background-color: rgba(18, 20, 25, 0.26) !important;
+    border-color: rgba(217, 242, 42, 0.9) !important;
+    box-shadow: 0 0 0 1px rgba(217,242,42,.45),
+                0 14px 38px -14px rgba(0,0,0,.55),
+                0 0 26px -6px rgba(217,242,42,.32) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  /* tema claro: vidro branco translucido */
+  html:not(.dark) body .kpi-card,
+  html:not(.dark) body .kpi-card[style]{
+    background-color: rgba(255,255,255,0.22) !important;
+    border-color: rgba(150,170,15,0.40) !important;
+    box-shadow: 0 8px 26px -16px rgba(0,0,0,.22),
+                inset 0 1px 0 rgba(255,255,255,.6) !important;
+  }
+</style>
+
+<style id="dp-and-slots-css">
+/* slot vazio do grid de filtros (mantém 4+4 simétrico) */
+.filter-field--empty{ visibility:hidden; pointer-events:none; }
+@media (max-width:560px){ .filter-field--empty{ display:none; } }
+
+/* gatilho do date picker (parece um input) */
+.date-range .dp-trigger{
+  display:inline-flex; align-items:center; gap:.4rem;
+  width:auto !important; min-width:150px;
+  height:38px !important; padding:0 .7rem;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--card); color:var(--foreground);
+  font-size:.78rem; font-weight:600; cursor:pointer; text-align:left;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+}
+.date-range .dp-trigger .dp-cal-ic{ color:var(--lime-accent); flex:0 0 auto; }
+.date-range .dp-trigger .dp-val{ flex:1 1 auto; white-space:nowrap; }
+.date-range .dp-trigger:hover{
+  border-color:color-mix(in oklab, var(--lime-accent) 55%, var(--border));
+  background:color-mix(in oklab, var(--lime-accent) 6%, var(--card));
+}
+.date-range .dp-trigger:focus,
+.date-range .dp-trigger:focus-visible{
+  outline:none;
+  border-color:var(--lime-accent);
+  box-shadow:0 0 0 3px var(--lime-soft);
+}
+
+/* popover do calendário */
+.dp-pop{
+  position:absolute; z-index:9999;
+  width:268px; padding:.7rem;
+  background:var(--card);
+  border:1.5px solid color-mix(in oklab, var(--lime-accent) 55%, var(--border));
+  border-radius:14px;
+  box-shadow:0 12px 34px rgba(0,0,0,.35), 0 0 0 3px var(--lime-soft);
+  user-select:none;
+}
+.dp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem; }
+.dp-title{ font-size:.82rem; font-weight:800; color:var(--foreground); }
+.dp-nav{
+  width:30px; height:30px; border-radius:8px;
+  border:1px solid var(--border); background:var(--card);
+  color:var(--foreground); font-size:1.05rem; line-height:1; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all .12s;
+}
+.dp-nav:hover{ border-color:var(--lime-accent); background:var(--lime-soft); }
+.dp-week{
+  display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:3px;
+}
+.dp-week span{
+  text-align:center; font-size:.62rem; font-weight:800;
+  color:var(--muted-fg); text-transform:uppercase;
+}
+.dp-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.dp-d{
+  height:32px; border:none; background:transparent; cursor:pointer;
+  border-radius:8px; font-size:.76rem; font-weight:600;
+  color:var(--foreground); transition:all .1s;
+}
+.dp-d.dp-empty{ background:transparent; cursor:default; }
+.dp-d:not(.dp-empty):hover{
+  background:color-mix(in oklab, var(--lime-accent) 22%, var(--card));
+}
+.dp-d.dp-today{
+  outline:1.5px solid color-mix(in oklab, var(--lime-accent) 60%, var(--border));
+  outline-offset:-2px;
+}
+.dp-d.dp-sel{
+  background:var(--lime-accent) !important; color:#1a1a1a !important; font-weight:800;
+}
+.dp-foot{
+  display:flex; justify-content:space-between; gap:.5rem;
+  margin-top:.6rem; padding-top:.55rem;
+  border-top:1px solid var(--border);
+}
+.dp-today-btn, .dp-clear-btn{
+  flex:1 1 auto; height:32px; border-radius:8px;
+  border:1px solid var(--border); background:var(--card);
+  color:var(--foreground); font-size:.72rem; font-weight:700; cursor:pointer;
+  transition:all .12s;
+}
+.dp-today-btn:hover{ border-color:var(--lime-accent); background:var(--lime-soft); color:color-mix(in oklab,var(--lime-accent) 85%, var(--foreground)); }
+.dp-clear-btn:hover{ border-color:#ef4444; color:#ef4444; background:color-mix(in oklab,#ef4444 8%, var(--card)); }
+</style>
+
+
+<style id="dp-layout-fix-css">
+/* 1) Mata a barra verde fantasma do #dateFilters (legado) */
+#dateFilters,
+#dateFilters.filters{
+  display:none !important;
+  border:0 !important;
+  background:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
+  margin:0 !important;
+}
+#dateFilters.filters::before{ display:none !important; content:none !important; }
+
+/* 2) Grid: bloco de filtros (esquerda) ocupa mais espaço; data (direita) compacta */
+.filters-grid{
+  display:grid !important;
+  grid-template-columns: minmax(0, 1.9fr) minmax(320px, 1fr) !important;
+  gap:1rem;
+  align-items:stretch;
+}
+@media (max-width:980px){
+  .filters-grid{ grid-template-columns:1fr !important; }
+}
+
+/* 3) Bloco esquerdo: selects em 4 colunas (quebra para 2 linhas: 4 + restante) */
+.filters-block--main .filters-block-fields{
+  grid-template-columns:repeat(4, minmax(0,1fr)) !important;
+}
+@media (max-width:1280px){
+  .filters-block--main .filters-block-fields{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; }
+}
+@media (max-width:560px){
+  .filters-block--main .filters-block-fields{ grid-template-columns:1fr !important; }
+}
+
+/* Bloco direito (data): campo único ocupando toda a largura do bloco */
+.filters-block-fields--date{
+  grid-template-columns:1fr !important;
+}
+.filters-block--date .filter-field--date{ width:100%; }
+
+/* não precisamos mais dos slots vazios */
+.filter-field--empty{ display:none !important; }
+</style>
+
+
+<style id="clear-filters-match-dates-final">
+/* ===== Limpar filtros: canto inferior DIREITO + estilo IGUAL ao Limpar datas ===== */
+/* Garante coluna flex no bloco principal para empurrar o botão ao rodapé */
+.filters-block--main{ display:flex !important; flex-direction:column !important; }
+.filters-block--main .filters-block-fields{ flex:0 0 auto !important; }
+
+/* Área de ações: colada ao FUNDO e alinhada à DIREITA, sem divisória */
+.filters-block--main .filters-block-actions{
+  display:flex !important;
+  justify-content:flex-end !important;   /* direita */
+  align-items:flex-end !important;
+  margin-top:auto !important;            /* empurra ao fundo */
+  padding-top:.85rem !important;
+  border:0 !important;
+}
+.filters-block--main .filters-block-actions #btnClearFilters{
+  margin-left:auto !important;
+  width:auto !important;
+}
+
+/* Estado BASE: idêntico ao .filter-clear-btn (igual "Limpar datas"), removendo o tom verde-limão */
+#btnClearFilters.filter-clear-btn,
+#btnClearFilters.filter-clear-btn--lime{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:.45rem !important;
+  height:38px !important;
+  padding:0 .9rem !important;
+  border:1px solid var(--border) !important;
+  border-radius:10px !important;
+  background:var(--card) !important;
+  color:var(--muted-fg) !important;
+  font-size:.76rem !important;
+  font-weight:600 !important;
+  cursor:pointer !important;
+  white-space:nowrap !important;
+  transition:all .15s ease !important;
+}
+
+/* Ativo: azul (igual base do "Limpar datas" quando has-active) */
+#btnClearFilters.filter-clear-btn.has-active,
+#btnClearFilters.filter-clear-btn--lime.has-active{
+  border-color:color-mix(in oklab, var(--link-color, #3b82f6) 55%, transparent) !important;
+  color:var(--link-color, #3b82f6) !important;
+  background:var(--card) !important;
+}
+
+/* Hover: vermelho discreto (igual base do "Limpar datas") */
+#btnClearFilters.filter-clear-btn:hover,
+#btnClearFilters.filter-clear-btn--lime:hover{
+  border-color:color-mix(in oklab, #ef4444 55%, transparent) !important;
+  color:#ef4444 !important;
+  background:color-mix(in oklab, #ef4444 8%, var(--card)) !important;
+}
+
+/* Badge de contador: azul (igual base) */
+#btnClearFilters .filter-clear-badge{
+  background:var(--link-color, #3b82f6) !important;
+  color:#fff !important;
+}
+</style>
+
+
+<style id="clear-dates-bottom-right-final">
+/* ===== Alinhar "Limpar datas" no mesmo lugar do "Limpar filtros":
+        canto INFERIOR DIREITO do bloco de datas ===== */
+.filters-block--date{
+  position:relative !important;
+  min-height:100%;
+}
+/* reserva espaço no rodapé para o botão não cobrir os campos */
+.filters-block--date .filters-block-fields--date{
+  padding-bottom:54px !important;
+}
+/* tira o botão do fluxo dos inputs e fixa no canto inferior direito */
+.filters-block--date #btnClearDates{
+  position:absolute !important;
+  right:1rem !important;
+  bottom:.9rem !important;
+  margin:0 !important;
+  z-index:2 !important;
+}
+/* mantém os inputs "de ... até" na linha de cima, sem o botão empurrando layout */
+.filters-block--date .date-range{
+  align-items:center !important;
+}
+</style>
+
+
+<style id="remove-lime-borders-final">
+/* ===== Remover borda verde-limão de TODOS os KPI cards (normal + hover) ===== */
+html body .kpi-grid .kpi-card,
+html body #trendCardsGrid .kpi-card,
+html body .kpi-card[style],
+html body .kpi-card{
+  border-color: var(--border) !important;
+  box-shadow: 0 10px 32px -16px rgba(0,0,0,.5),
+              inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
+html body .kpi-grid .kpi-card:hover,
+html body #trendCardsGrid .kpi-card:hover,
+html body .kpi-card[style]:hover,
+html body .kpi-card:hover{
+  border-color: var(--border) !important;
+  box-shadow: 0 14px 38px -14px rgba(0,0,0,.55) !important;
+}
+html:not(.dark) body .kpi-card,
+html:not(.dark) body .kpi-card[style]{
+  border-color: var(--border) !important;
+}
+
+/* ===== Box/tooltip do hover (#kpiPopover): borda neutra, sem verde ===== */
+#kpiPopover{
+  border:1px solid var(--border) !important;
+  box-shadow:0 18px 44px -18px rgba(0,0,0,.65) !important;
+}
+#kpiPopover .kp-title{ color:#e9ecf2 !important; }
+#kpiPopover .kp-arrow{
+  border-left-color:var(--border) !important;
+  border-top-color:var(--border) !important;
+}
+</style>
+
 </html>
 
 <style id="forca-eixos-legendas-branco">
@@ -6586,6 +7067,268 @@ setTimeout(() => {
 .chart-card svg tspan { fill:#ffffff !important; }
 /* Legendas HTML geradas por libs de gráfico */
 .chartjs-legend li, .chartjs-legend span { color:#ffffff !important; }
+
+/* ==========================================================
+   >>> FILTROS REORGANIZADOS (layout em campos com rótulo) <<<
+   ========================================================== */
+#filtersSection.filters,
+#dateFiltersLEGACYOFF.filters{
+  display:flex !important;
+  align-items:flex-end !important;
+  justify-content:space-between !important;
+  gap:1rem !important;
+  flex-wrap:wrap !important;
+  padding:.9rem 1rem !important;
+  background:color-mix(in oklab, var(--card) 96%, var(--muted-fg) 4%) !important;
+  border:1px solid var(--border) !important;
+  border-radius:14px !important;
+  box-shadow:var(--shadow-xs, 0 1px 2px rgba(0,0,0,.18)) !important;
+  margin-bottom:1rem !important;
+}
+#dateFiltersLEGACYOFF.filters{ margin-bottom:1.25rem !important; }
+
+/* grade dos campos (lado esquerdo) */
+.filters-fields{
+  display:grid !important;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:.7rem .8rem;
+  flex:1 1 auto;
+  min-width:0;
+}
+@media (max-width:1100px){ .filters-fields{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (max-width:560px){ .filters-fields{ grid-template-columns:1fr; } }
+/* cada campo: rótulo em cima, controle embaixo */
+.filter-field{
+  display:flex; flex-direction:column; gap:.3rem; min-width:0;
+}
+.filter-field-label{
+  font-size:.66rem; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--muted-fg);
+  display:flex; align-items:center; gap:.3rem;
+  white-space:nowrap;
+}
+.filter-field .filter-select,
+.filter-field .filter-input{
+  width:100% !important; min-width:0 !important;
+  height:38px !important; border-radius:10px !important;
+}
+
+/* área de ações (botões limpar) alinhada à direita */
+.filters-actions{
+  display:flex; align-items:flex-end; flex:0 0 auto;
+  padding-bottom:1px;
+}
+
+/* botão limpar com ícone — estilo discreto/secundário */
+.filter-clear-btn{
+  display:inline-flex; align-items:center; gap:.45rem;
+  height:38px; padding:0 .9rem;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--card);
+  color:var(--muted-fg);
+  font-size:.76rem; font-weight:600; cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s ease;
+}
+.filter-clear-btn:hover{
+  border-color:color-mix(in oklab, #ef4444 55%, transparent);
+  color:#ef4444;
+  background:color-mix(in oklab, #ef4444 8%, var(--card));
+}
+.filter-clear-btn svg{ flex:0 0 auto; }
+.filter-clear-btn.has-active{
+  border-color:color-mix(in oklab, var(--link-color, #3b82f6) 55%, transparent);
+  color:var(--link-color, #3b82f6);
+}
+.filter-clear-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px;
+  border-radius:9px; font-size:.66rem; font-weight:800;
+  background:var(--link-color, #3b82f6); color:#fff;
+}
+
+/* campo de data: rótulo + range numa linha */
+.filter-field--date{ flex:1 1 auto; }
+.date-range{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.date-range-sep{ font-size:.74rem; color:var(--muted-fg); font-weight:600; }
+.date-range .filter-input{ height:38px !important; border-radius:10px !important; }
+
+.help-tip{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:15px; height:15px; border-radius:50%;
+  background:var(--muted-fg, #94a3b8); color:var(--card,#fff);
+  font-size:.62rem; font-weight:800; cursor:help; opacity:.75;
+}
+
+@media (max-width:760px){
+  .filters-actions{ width:100%; justify-content:flex-end; }
+  .filter-clear-btn{ width:100%; justify-content:center; }
+}
+
+
+/* ==========================================================
+   >>> DESTAQUE VERDE LIMÃO PARA O BLOCO DE DATAS <<<
+   ========================================================== */
+:root{ --lime-accent:#D9F22A; --lime-soft:rgba(217,242,42,.10); }
+
+#dateFiltersLEGACYOFF.filters{
+  border:1.5px solid color-mix(in oklab, var(--lime-accent) 55%, var(--border)) !important;
+  background:linear-gradient(180deg,
+      color-mix(in oklab, var(--lime-accent) 7%, var(--card)),
+      var(--card)) !important;
+  box-shadow:0 0 0 3px var(--lime-soft), var(--shadow-xs, 0 1px 2px rgba(0,0,0,.18)) !important;
+}
+/* faixa lateral de acento */
+#dateFiltersLEGACYOFF.filters{ position:relative; overflow:hidden; }
+#dateFiltersLEGACYOFF.filters::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+  background:var(--lime-accent);
+}
+#dateFiltersLEGACYOFF .filter-field-label{
+  color:color-mix(in oklab, var(--lime-accent) 75%, var(--muted-fg)) !important;
+}
+#dateFiltersLEGACYOFF .help-tip{
+  background:var(--lime-accent) !important; color:#1a1a1a !important; opacity:1 !important;
+}
+/* inputs de data: borda/foco no tom limão */
+#dateFiltersLEGACYOFF .filter-input:hover{
+  border-color:color-mix(in oklab, var(--lime-accent) 50%, var(--border)) !important;
+}
+#dateFiltersLEGACYOFF .filter-input:focus{
+  border-color:var(--lime-accent) !important;
+  box-shadow:0 0 0 3px var(--lime-soft) !important;
+}
+/* botão "Limpar datas" ganha contorno limão quando há datas ativas */
+#dateFiltersLEGACYOFF .filter-clear-btn.has-active{
+  border-color:color-mix(in oklab, var(--lime-accent) 60%, transparent) !important;
+  color:color-mix(in oklab, var(--lime-accent) 80%, var(--foreground)) !important;
+  background:var(--lime-soft) !important;
+}
+
+
+/* ==========================================================
+   >>> FILTROS EM DOIS BLOCOS (4+4) <<<
+   ========================================================== */
+:root{ --lime-accent:#D9F22A; --lime-soft:rgba(217,242,42,.10); }
+
+#filtersSection.filters{
+  display:block !important;
+  padding:0 !important;
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  margin-bottom:1.25rem !important;
+}
+
+/* dois blocos lado a lado */
+.filters-grid{
+  display:grid !important;
+  grid-template-columns:1fr 1fr;
+  gap:1rem;
+  align-items:stretch;
+}
+@media (max-width:980px){ .filters-grid{ grid-template-columns:1fr; } }
+
+/* o card de cada bloco */
+.filters-block{
+  background:color-mix(in oklab, var(--card) 96%, var(--muted-fg) 4%);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:.9rem 1rem;
+  box-shadow:var(--shadow-xs, 0 1px 2px rgba(0,0,0,.18));
+}
+
+/* cada bloco internamente: grade de 4 colunas */
+.filters-block-fields{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0,1fr));
+  gap:.7rem .8rem;
+}
+@media (max-width:1280px){ .filters-block-fields{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (max-width:560px){ .filters-block-fields{ grid-template-columns:1fr; } }
+
+.filter-field{ display:flex; flex-direction:column; gap:.3rem; min-width:0; }
+.filter-field-label{
+  font-size:.66rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--muted-fg); display:flex; align-items:center; gap:.3rem; white-space:nowrap;
+}
+.filter-field .filter-select,
+.filter-field .filter-input{
+  width:100% !important; min-width:0 !important; height:38px !important; border-radius:10px !important;
+}
+
+/* rodapé com botão limpar filtros, alinhado à direita */
+.filters-footer{
+  display:flex; justify-content:flex-end; margin-top:.75rem;
+}
+
+/* botão limpar (filtros e datas) */
+.filter-clear-btn{
+  display:inline-flex; align-items:center; gap:.45rem;
+  height:38px; padding:0 .9rem;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--card); color:var(--muted-fg);
+  font-size:.76rem; font-weight:600; cursor:pointer; white-space:nowrap;
+  transition:all .15s ease;
+}
+.filter-clear-btn:hover{
+  border-color:color-mix(in oklab, #ef4444 55%, transparent);
+  color:#ef4444; background:color-mix(in oklab, #ef4444 8%, var(--card));
+}
+.filter-clear-btn svg{ flex:0 0 auto; }
+.filter-clear-btn.has-active{
+  border-color:color-mix(in oklab, var(--link-color, #3b82f6) 55%, transparent);
+  color:var(--link-color, #3b82f6);
+}
+.filter-clear-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px; border-radius:9px;
+  font-size:.66rem; font-weight:800; background:var(--link-color, #3b82f6); color:#fff;
+}
+
+/* campo de data ocupa as 4 colunas do bloco direito */
+.filter-field--date{ grid-column:1 / -1; }
+.date-range{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.date-range-sep{ font-size:.74rem; color:var(--muted-fg); font-weight:600; }
+.date-range .filter-input{ width:auto !important; min-width:140px; }
+
+.help-tip{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:15px; height:15px; border-radius:50%;
+  background:var(--muted-fg, #94a3b8); color:var(--card,#fff);
+  font-size:.62rem; font-weight:800; cursor:help; opacity:.75;
+}
+
+/* ===== destaque verde-limão no BLOCO da direita (que contém a data) ===== */
+.filters-block--date{
+  position:relative; overflow:hidden;
+  border:1.5px solid color-mix(in oklab, var(--lime-accent) 55%, var(--border)) !important;
+  background:linear-gradient(180deg, color-mix(in oklab, var(--lime-accent) 6%, var(--card)), var(--card)) !important;
+  box-shadow:0 0 0 3px var(--lime-soft), var(--shadow-xs, 0 1px 2px rgba(0,0,0,.18)) !important;
+}
+.filters-block--date::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--lime-accent);
+}
+.filters-block--date .filter-field--date .filter-field-label{
+  color:color-mix(in oklab, var(--lime-accent) 75%, var(--muted-fg)) !important;
+}
+.filters-block--date .help-tip{
+  background:var(--lime-accent) !important; color:#1a1a1a !important; opacity:1 !important;
+}
+.filters-block--date .filter-input:hover{
+  border-color:color-mix(in oklab, var(--lime-accent) 50%, var(--border)) !important;
+}
+.filters-block--date .filter-input:focus{
+  border-color:var(--lime-accent) !important; box-shadow:0 0 0 3px var(--lime-soft) !important;
+}
+.filters-block--date .filter-clear-btn.has-active{
+  border-color:color-mix(in oklab, var(--lime-accent) 60%, transparent) !important;
+  color:color-mix(in oklab, var(--lime-accent) 80%, var(--foreground)) !important;
+  background:var(--lime-soft) !important;
+}
+
 </style>
 
 <script id="forca-chart-branco">
@@ -6630,3 +7373,83 @@ setTimeout(() => {
   setInterval(forceWhite, 1500);
 })();
 </scrip
+
+<style id="clear-btn-inside-css">
+/* Bloco esquerdo vira coluna flex para empurrar o botão ao rodapé */
+.filters-block--main{ display:flex !important; flex-direction:column !important; }
+
+/* área do botão: colada ao FUNDO e alinhada à DIREITA, sem linha divisória */
+.filters-block-actions{
+  display:flex !important;
+  justify-content:flex-end !important;
+  align-items:flex-end !important;
+  margin-top:auto !important;     /* empurra para o canto inferior */
+  padding-top:.8rem !important;
+  border:0 !important;            /* remove a linha divisória que ficava esquisita */
+}
+
+/* MESMO estilo do "Limpar datas": estado base idêntico ao .filter-clear-btn,
+   e quando há filtros ativos / hover ganha o tom verde-limão */
+.filter-clear-btn--lime.has-active{
+  border-color:color-mix(in oklab, var(--lime-accent) 60%, transparent) !important;
+  color:color-mix(in oklab, var(--lime-accent) 80%, var(--foreground)) !important;
+  background:var(--lime-soft) !important;
+}
+.filter-clear-btn--lime:hover{
+  border-color:color-mix(in oklab, var(--lime-accent) 65%, transparent) !important;
+  color:color-mix(in oklab, var(--lime-accent) 85%, var(--foreground)) !important;
+  background:color-mix(in oklab, var(--lime-accent) 12%, var(--card)) !important;
+}
+.filter-clear-btn--lime .filter-clear-badge{
+  background:var(--lime-accent) !important; color:#1a1a1a !important;
+}
+</style>
+
+<style id="clear-btn-final-fix">
+/* ===== Botão Limpar filtros: canto inferior DIREITO, igual ao Limpar datas ===== */
+.filters-block--main{ display:flex !important; flex-direction:column !important; }
+.filters-block--main .filters-block-fields{ flex:0 0 auto; }
+
+.filters-block--main .filters-block-actions{
+  display:block !important;          /* simples, sem grid herdado */
+  margin-top:auto !important;        /* empurra ao fundo */
+  padding-top:.85rem !important;
+  border:0 !important;               /* sem linha divisória */
+  text-align:right !important;       /* botão para a direita */
+}
+.filters-block--main .filters-block-actions #btnClearFilters{
+  margin-left:auto !important;       /* garante alinhamento à direita */
+  width:auto !important;
+}
+
+/* Estado BASE idêntico ao "Limpar datas" */
+#btnClearFilters.filter-clear-btn--lime{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:.45rem !important;
+  height:38px !important;
+  padding:0 .9rem !important;
+  border:1px solid var(--border) !important;
+  border-radius:10px !important;
+  background:var(--card) !important;
+  color:var(--muted-fg) !important;
+  font-size:.76rem !important;
+  font-weight:600 !important;
+  cursor:pointer !important;
+}
+/* Ativo / hover: tom verde-limão (igual Limpar datas) */
+#btnClearFilters.filter-clear-btn--lime.has-active{
+  border-color:color-mix(in oklab, var(--lime-accent) 60%, transparent) !important;
+  color:color-mix(in oklab, var(--lime-accent) 80%, var(--foreground)) !important;
+  background:var(--lime-soft) !important;
+}
+#btnClearFilters.filter-clear-btn--lime:hover{
+  border-color:color-mix(in oklab, var(--lime-accent) 65%, transparent) !important;
+  color:color-mix(in oklab, var(--lime-accent) 85%, var(--foreground)) !important;
+  background:color-mix(in oklab, var(--lime-accent) 12%, var(--card)) !important;
+}
+#btnClearFilters .filter-clear-badge{
+  background:var(--lime-accent) !important; color:#1a1a1a !important;
+}
+</style>
+
