@@ -1761,6 +1761,11 @@ header .header-right .update-banner{ order:99; }
 header .header-brand img{height:56px !important;width:auto !important;max-width:320px !important;object-fit:contain !important;display:block !important;border-radius:0 !important;background:transparent !important;}
 @media (max-width:760px){header .header-brand img{height:44px !important;max-width:220px !important;}}
 </style>
+<style id="cpr-clickable-fix">
+.cpr-panel-item{cursor:pointer;transition:background .12s,border-color .12s}
+.cpr-panel-item:hover{background:rgba(217,242,42,.08)}
+.cpr-panel-item .cpr-panel-acts .mini[data-del]{cursor:pointer}
+</style>
 </head>
 <body>
 
@@ -7105,7 +7110,7 @@ setTimeout(() => {
 
 /* popover do calendário */
 .dp-pop{
-  position:absolute; z-index:9999;
+  position:absolute; z-index:100001;
   width:268px; padding:.7rem;
   background:var(--card);
   border:1.5px solid color-mix(in oklab, var(--lime-accent) 55%, var(--border));
@@ -8084,14 +8089,16 @@ body.cp-tab-active #filtersSection, body.cp-tab-active #dateFilters{display:none
     // Abrir o MESMO datepicker visual do filtro (dp-pop) ao clicar nos campos de data
     ['cpmNewDate','cpmNewDue'].forEach(function(idd){
       const inp=document.getElementById(idd);
-      if(inp){
-        inp.readOnly=true; inp.style.cursor='pointer';
-        inp.addEventListener('click',function(ev){ ev.preventDefault();
-          if(typeof window.openDatePickerOn==='function'){
-            window.openDatePickerOn(inp, inp.value||'', function(ds){ inp.value=ds; });
-          } else { try{ if(typeof inp.showPicker==='function') inp.showPicker(); }catch(e){} }
-        });
-      }
+      if(!inp) return;
+      inp.readOnly=true; inp.style.cursor='pointer';
+      const openPick=function(ev){
+        if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+        if(typeof window.openDatePickerOn==='function'){
+          window.openDatePickerOn(inp, inp.value||'', function(ds){ inp.value=ds; });
+        } else { try{ if(typeof inp.showPicker==='function') inp.showPicker(); }catch(e){} }
+      };
+      // Abre no proximo tick para nao colidir com o listener 'once' de fechamento do datepicker
+      inp.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); setTimeout(function(){ openPick(); }, 0); });
     });
     setTimeout(()=>{ const el=document.getElementById('cpmNewText'); if(el) el.focus(); },50);
   }
@@ -9009,7 +9016,6 @@ body.cp-tab-active .cp-task-card.done:hover,
         <span class=\"ic\">${r.type==='case'?"<svg class='cpr-ic-svg' viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/></svg>":"<svg class='cpr-ic-svg' viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>"}</span>
         <span class=\"tx\"><b>${escapeHtmlR(labelFor(r))}</b><small>${fmtBR(r.date)}${due?' \u2022 hoje/atrasado':''}</small></span>
         <span class=\"cpr-panel-acts\">
-          <button class=\"mini\" data-open=\"${r.id}\" title=\"Abrir\"><svg class='cpr-ic-svg' viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M7 17 17 7M9 7h8v8'/></svg></button>
           <button class=\"mini\" data-del=\"${r.id}\" title=\"Remover\"><svg class='cpr-ic-svg' viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6'/><path d='M10 11v6M14 11v6'/></svg></button>
         </span>
       </li>`;
@@ -9049,10 +9055,12 @@ body.cp-tab-active .cp-task-card.done:hover,
       dr.addEventListener('click',(e)=>{
         const tb=e.target.closest('[data-cprtab]');
         if(tb){ setReminderTab(tb.getAttribute('data-cprtab')); return; }
-        const ob=e.target.closest('[data-open]');
-        if(ob){ const id=ob.getAttribute('data-open'); const r=list().find(x=>x.id===id); if(r){ toggleDrawer(false); setTimeout(()=>openRefAny(r),200); } return; }
+        // Excluir tem prioridade (botao da lixeira)
         const db=e.target.closest('[data-del]');
-        if(db){ removeRem(db.getAttribute('data-del'),'concluído'); refreshPanel(); decorateCards(); toast('Lembrete concluído.'); if(typeof renderHistory==='function') renderHistory(); return; }
+        if(db){ e.stopPropagation(); removeRem(db.getAttribute('data-del'),'concluído'); refreshPanel(); decorateCards(); toast('Lembrete concluído.'); if(typeof renderHistory==='function') renderHistory(); return; }
+        // Clique em qualquer parte do card do lembrete abre o item
+        const li=e.target.closest('.cpr-panel-item[data-id]');
+        if(li){ const id=li.getAttribute('data-id'); const r=list().find(x=>x.id===id); if(r){ toggleDrawer(false); setTimeout(()=>openRefAny(r),200); } return; }
       });
       document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') toggleDrawer(false); });
     }
